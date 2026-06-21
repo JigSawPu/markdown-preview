@@ -320,26 +320,51 @@ function observeSections() {
 }
 
 document.addEventListener("click", event => {
-  const toggleButton = event.target.closest(".outline-toggle");
+  const groupToggle = event.target.closest(
+    ".outline-group-toggle"
+  );
+
+  if (groupToggle) {
+    const group = groupToggle.closest(
+      ".outline-group"
+    );
+
+    const collapsed = group.classList.toggle(
+      "collapsed"
+    );
+
+    groupToggle.setAttribute(
+      "aria-expanded",
+      collapsed ? "false" : "true"
+    );
+
+    return;
+  }
+
+  const toggleButton = event.target.closest(
+    ".outline-toggle"
+  );
 
   if (toggleButton) {
-    const outlineItem = toggleButton.closest(".outline-item");
-    const collapsed = outlineItem.classList.toggle("collapsed");
+    const outlineItem = toggleButton.closest(
+      ".outline-item"
+    );
+
+    const collapsed = outlineItem.classList.toggle(
+      "collapsed"
+    );
 
     toggleButton.setAttribute(
       "aria-expanded",
       collapsed ? "false" : "true"
     );
 
-    toggleButton.setAttribute(
-      "aria-label",
-      collapsed ? "Expand heading" : "Collapse heading"
-    );
-
     return;
   }
 
-  const navigationLink = event.target.closest("[data-target]");
+  const navigationLink = event.target.closest(
+    "[data-target]"
+  );
 
   if (navigationLink) {
     event.preventDefault();
@@ -347,7 +372,9 @@ document.addEventListener("click", event => {
     return;
   }
 
-  const panelButton = event.target.closest("[data-panel]");
+  const panelButton = event.target.closest(
+    "[data-panel]"
+  );
 
   if (panelButton) {
     openPanel(panelButton.dataset.panel);
@@ -360,7 +387,6 @@ document.addEventListener("click", event => {
     closePanels();
   }
 });
-
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") closePanels();
 });
