@@ -202,17 +202,30 @@ function parseSpecialMarkdown(source) {
 function renderDocument(sections) {
   const usedHeadingIds = new Map();
   const allowedTags = Array.from(
-    new Set([
-      ...sanitizeHtml.defaults.allowedTags,
-      "img",
-      "h1",
-      "h2",
-      "h3",
-      "h4",
-      "h5",
-      "h6"
-    ])
-  );
+  new Set([
+    ...sanitizeHtml.defaults.allowedTags,
+
+    "img",
+
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+
+    "pre",
+    "code",
+
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td"
+  ])
+);
   const renderedSections = sections.map(
     (section, sectionIndex) => {
       const sectionOutline = [];
@@ -266,7 +279,8 @@ function renderDocument(sections) {
         section.markdown || "",
         {
           gfm: true,
-          breaks: true,
+          breaks: false,
+          pedantic: false,
           renderer
         }
       );
