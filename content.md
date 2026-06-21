@@ -2787,4 +2787,79 @@ Status(MM10.19) = Frozen
 Status(MM10 Runtime Semantics) = Frozen
 MM10 now provides the complete execution semantics for the frozen Cloud Core Meta-Model.
 
-
+DESCRIPTION7
+What styling and structure are included in ChatGPT export data.
+BODY7
+# What Styling Is Included in ChatGPT Export Data?
+A ChatGPT **data export does not provide the exact live ChatGPT interface styling** as reusable CSS.
+The exported ZIP normally contains two useful conversation representations.
+## `chat.html`
+This is a browser-readable version of your chat history. It contains rendered conversation content, so it may display:
+- **Bold** and *italic* text
+- Headings
+- Lists
+- Links
+- Inline code
+- Code blocks
+- Basic message layout
+However, its appearance is controlled by the export file’s own HTML and CSS.
+It is not guaranteed to match the current ChatGPT application exactly, including:
+- Fonts
+- Colors
+- Spacing
+- Light or dark theme
+- Syntax highlighting
+- Mobile layout
+- Interactive controls
+OpenAI states that exported chat history is included in `chat.html`.
+[OpenAI: How to export your ChatGPT history and data](https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data)
+## `conversations.json`
+This file contains structured conversation records and message content.
+For a Markdown website, this is generally the more useful file because its content can be extracted and processed programmatically.
+Depending on how a response is stored, formatted content may appear as Markdown-like source:
+```markdown
+This is **important**.
+## Heading
+- First item
+- Second item
+`inline code`
+```
+However, `conversations.json` does not include the ChatGPT application’s visual CSS.
+Your own Markdown renderer and `styles.css` determine how that content appears on your website.
+## What Is Not Exported as Reusable Styling?
+Do not expect the export to contain:
+- ChatGPT’s complete production stylesheet
+- The exact current font configuration
+- Theme and accent-color behavior
+- Identical syntax-highlighting rules
+- Exact message spacing
+- Interactive copy buttons
+- Collapsible interface elements
+- The complete live ChatGPT layout
+## Best Option for This Project
+For accurate content preservation:
+1. Use `conversations.json` to obtain the response text.
+2. Extract the selected assistant message.
+3. Preserve its Markdown syntax.
+4. Pass the Markdown through `marked`.
+5. Render it inside a `.markdown-body` container.
+6. Use GitHub Markdown CSS or your own stylesheet for consistent appearance.
+For accurate visual appearance, use your own controlled CSS instead of attempting to copy styles from `chat.html`.
+The distinction is:
+```text
+conversations.json → content and structure
+chat.html          → readable exported presentation
+styles.css         → appearance on your website
+```
+## Recommended Workflow
+Use `conversations.json` as the source of the response content, then convert the selected conversation into your application’s format:
+```text
+DESCRIPTION1
+A short description of the response.
+BODY1
+# Response heading
+The complete Markdown response goes here.
+```
+This gives you control over both parts:
+- **Markdown source** preserves headings, emphasis, lists, links, and code blocks.
+- **Your CSS** controls fonts, colors, spacing, code-block appearance, and responsive layout.
