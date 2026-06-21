@@ -263,6 +263,7 @@ Based on the completed Phase 4A milestone and the ten-phase roadmap, I recommend
 
 Proposed repository structure
 
+```
 cloud/
 ├── README.md
 ├── ROADMAP.md
@@ -822,11 +823,11 @@ cloud/
     ├── historical-roadmaps/
     ├── meeting-notes/
     └── imported-transcripts/
-
+```
 Standard structure for every normative module
 
 Each MM, CM, CL, CC, RM, CP, DP, or SH module should follow the same internal contract:
-
+```
 <module-id>-<module-name>/
 ├── README.md
 ├── STATUS.yaml
@@ -883,7 +884,7 @@ Each MM, CM, CL, CC, RM, CP, DP, or SH module should follow the same internal co
     ├── freeze-manifest.yaml
     ├── checksums.yaml
     └── release-notes.md
-
+```
 Repository rules
 
 spec/ is the normative source of truth. Explanatory material belongs in docs/; executable implementations belong in packages/; provider-specific behavior belongs in adapters/.
