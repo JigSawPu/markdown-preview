@@ -10,6 +10,12 @@ const CONTENT_FILE = process.env.CONTENT_FILE || path.join(__dirname, "content.m
 
 app.disable("x-powered-by");
 app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  "/vendor/github-markdown-css",
+  express.static(
+    path.join(__dirname, "node_modules", "github-markdown-css")
+  )
+);
 
 function slugify(value) {
   return String(value)
