@@ -83,93 +83,119 @@ function parseSpecialMarkdown(source) {
 
 function renderDocument(sections) {
   const usedIds = new Map();
-  const outline = [];
 
-  const renderer = new marked.Renderer();
-  renderer.heading = ({ tokens, depth }) => {
-    const text = tokens.map(token => token.raw || token.text || "").join("");
-    const plainText = text.replace(/<[^>]*>/g, "").trim();
-    const base = slugify(plainText);
-    const count = usedIds.get(base) || 0;
-    usedIds.set(base, count + 1);
-    const id = count ? `${base}-${count + 1}` : base;
-    outline.push({ id, text: plainText, level: depth });
-    return `<h${depth} id="${id}" class="anchored-heading">${text}</h${depth}>`;
-  };
+  const renderedSections = sections.map((section, sectionIndex) => {
+    const sectionOutline = [];
 
-  marked.setOptions({
-    gfm: true,
-    breaks: false,
-    renderer
-  });
+    const renderer = new marked.Renderer();
 
-  const allowedTags = sanitizeHtml.defaults.allowedTags.concat([
-    "img", "h1", "h2", "h3", "h4", "h5", "h6"
-  ]);
+    renderer.heading = ({ tokens, depth }) => {
+      const text = tokens
+        .map(token => token.raw || token.text || "")
+        .join("");
 
-  const renderedSections = sections.map(section => {
-    const html = marked.parse(section.markdown || "");
+      const plainText = text
+        .replace(/<[^>]*>/g, "")
+        .trim();
+
+      const base = slugify(plainText);
+      const count = usedIds.get(base) || 0;
+
+      usedIds.set(base, count + 1);
+
+      const id = count
+        ? `${base}-${count + 1}`
+        : base;
+
+      sectionOutline.push({
+        id,
+        text: plainText,
+        level: depth
+      });
+
+      return `
+        <h${depth}
+          id="${id}"
+          class="anchored-heading"
+        >
+          ${text}
+        </h${depth}>
+      `;
+    };
+
+    const html = marked.parse(section.markdown || "", {
+      gfm: true,
+      breaks: true,
+      renderer
+    });
+
+    const cleanHtml = sanitizeHtml(html, {
+      allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+        "img",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6"
+      ]),
+
+      allowedAttributes: {
+        ...sanitizeHtml.defaults.allowedAttributes,
+
+        a: [
+          "href",
+          "name",
+          "target",
+          "rel"
+        ],
+
+        img: [
+          "src",
+          "alt",
+          "title",
+          "width",
+          "height",
+          "loading"
+        ],
+
+        code: ["class"],
+
+        h1: ["id", "class"],
+        h2: ["id", "class"],
+        h3: ["id", "class"],
+        h4: ["id", "class"],
+        h5: ["id", "class"],
+        h6: ["id", "class"]
+      },
+
+      allowedSchemes: [
+        "http",
+        "https",
+        "mailto"
+      ],
+
+      transformTags: {
+        a: sanitizeHtml.simpleTransform("a", {
+          target: "_blank",
+          rel: "noopener noreferrer"
+        }),
+
+        img: sanitizeHtml.simpleTransform("img", {
+          loading: "lazy"
+        })
+      }
+    });
+
     return {
       ...section,
-      html: sanitizeHtml(html, {
-        allowedTags,
-        allowedAttributes: {
-          ...sanitizeHtml.defaults.allowedAttributes,
-          a: ["href", "name", "target", "rel"],
-          img: ["src", "alt", "title", "width", "height", "loading"],
-          code: ["class"],
-          h1: ["id", "class"],
-          h2: ["id", "class"],
-          h3: ["id", "class"],
-          h4: ["id", "class"],
-          h5: ["id", "class"],
-          h6: ["id", "class"]
-        },
-        allowedSchemes: ["http", "https", "mailto"],
-        transformTags: {
-          a: sanitizeHtml.simpleTransform("a", {
-            target: "_blank",
-            rel: "noopener noreferrer"
-          }),
-          img: sanitizeHtml.simpleTransform("img", {
-            loading: "lazy"
-          })
-        }
-      })
+      index: sectionIndex,
+      html: cleanHtml,
+      outline: sectionOutline
     };
   });
 
-  return { sections: renderedSections, outline };
+  return {
+    sections: renderedSections
+  };
 }
-
-app.get("/api/document", async (_req, res) => {
-  try {
-    const source = await fs.readFile(CONTENT_FILE, "utf8");
-    const sections = parseSpecialMarkdown(source);
-
-    if (!sections.length) {
-      return res.status(422).json({
-        error: "No sections found. Use DESCRIPTION1 followed by BODY1."
-      });
-    }
-
-    res.json(renderDocument(sections));
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: `Could not read ${path.basename(CONTENT_FILE)}.`
-    });
-  }
-});
-
-app.get("/health", (_req, res) => {
-  res.status(200).send("ok");
-});
-
-app.get("*splat", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Markdown reader running on port ${PORT}`);
-});
