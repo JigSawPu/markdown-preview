@@ -34,49 +34,106 @@ function navigateTo(id) {
   history.replaceState(null, "", `#${encodeURIComponent(id)}`);
 }
 
-function buildNestedOutline(items) {
-  if (!items.length) {
-    return '<p class="empty-message">No Markdown headings found.</p>';
-  }
+function createOutlineTree(items) {
+  const root = {
+    level: 0,
+    children: []
+  };
 
-  let html = "";
-  let currentLevel = 0;
+  const stack = [root];
 
   for (const item of items) {
-    const level = Math.max(1, Math.min(6, Number(item.level) || 1));
+    const node = {
+      ...item,
+      level: Math.max(1, Math.min(6, Number(item.level) || 1)),
+      children: []
+    };
 
-    while (currentLevel < level) {
-      html += '<ul class="outline-list">';
-      currentLevel++;
+    /*
+     * Find the nearest previous heading with a lower level.
+     *
+     * This also handles skipped levels:
+     * # Heading
+     * ### Heading
+     *
+     * The H3 becomes a child of the H1.
+     */
+    while (
+      stack.length > 1 &&
+      stack[stack.length - 1].level >= node.level
+    ) {
+      stack.pop();
     }
 
-    while (currentLevel > level) {
-      html += "</li></ul>";
-      currentLevel--;
-    }
+    stack[stack.length - 1].children.push(node);
+    stack.push(node);
+  }
 
-    if (html && !html.endsWith('<ul class="outline-list">')) {
-      html += "</li>";
-    }
+  return root.children;
+}
 
-    html += `
-      <li class="outline-item">
-        <a
-          class="nav-link"
-          data-target="${escapeText(item.id)}"
-          href="#${encodeURIComponent(item.id)}"
-        >
-          ${escapeText(item.text)}
-        </a>
+function renderOutlineNodes(nodes) {
+  if (!nodes.length) return "";
+
+  return `
+    <ul class="outline-list">
+      ${nodes.map(node => {
+        const hasChildren = node.children.length > 0;
+
+        return `
+          <li
+            class="outline-item ${hasChildren ? "has-children" : ""}"
+            data-outline-id="${escapeText(node.id)}"
+          >
+            <div class="outline-row">
+              ${
+                hasChildren
+                  ? `
+                    <button
+                      class="outline-toggle"
+                      type="button"
+                      aria-label="Collapse ${escapeText(node.text)}"
+                      aria-expanded="true"
+                    >
+                      <span aria-hidden="true">▾</span>
+                    </button>
+                  `
+                  : `
+                    <span class="outline-toggle-spacer"></span>
+                  `
+              }
+
+              <a
+                class="nav-link"
+                data-target="${escapeText(node.id)}"
+                href="#${encodeURIComponent(node.id)}"
+                title="${escapeText(node.text)}"
+              >
+                <span class="nav-link-text">
+                  ${escapeText(node.text)}
+                </span>
+              </a>
+            </div>
+
+            ${renderOutlineNodes(node.children)}
+          </li>
+        `;
+      }).join("")}
+    </ul>
+  `;
+}
+
+function buildNestedOutline(items) {
+  if (!items.length) {
+    return `
+      <p class="empty-message">
+        No Markdown headings found.
+      </p>
     `;
   }
 
-  while (currentLevel > 0) {
-    html += "</li></ul>";
-    currentLevel--;
-  }
-
-  return html;
+  const tree = createOutlineTree(items);
+  return renderOutlineNodes(tree);
 }
 
 function buildNavigation(data) {
@@ -104,7 +161,43 @@ function buildDocument(data) {
 
 function setActiveLink(id) {
   document.querySelectorAll("[data-target]").forEach(link => {
-    link.classList.toggle("active", link.dataset.target === id);
+    link.classList.toggle(
+      "active",
+      link.dataset.target === id
+    );
+  });
+
+  const activeOutlineItem = document.querySelector(
+    `.outline-item[data-outline-id="${CSS.escape(id)}"]`
+  );
+
+  if (!activeOutlineItem) return;
+
+  /*
+   * Expand all parent branches containing the active heading.
+   */
+  let parent = activeOutlineItem.parentElement?.closest(".outline-item");
+
+  while (parent) {
+    parent.classList.remove("collapsed");
+
+    const toggle = parent.querySelector(
+      ":scope > .outline-row > .outline-toggle"
+    );
+
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", "true");
+    }
+
+    parent = parent.parentElement?.closest(".outline-item");
+  }
+
+  /*
+   * Keep the active outline item visible in the side panel.
+   */
+  activeOutlineItem.scrollIntoView({
+    block: "nearest",
+    behavior: "smooth"
   });
 }
 
@@ -128,7 +221,27 @@ function observeSections() {
 }
 
 document.addEventListener("click", event => {
+  const toggleButton = event.target.closest(".outline-toggle");
+
+  if (toggleButton) {
+    const outlineItem = toggleButton.closest(".outline-item");
+    const collapsed = outlineItem.classList.toggle("collapsed");
+
+    toggleButton.setAttribute(
+      "aria-expanded",
+      collapsed ? "false" : "true"
+    );
+
+    toggleButton.setAttribute(
+      "aria-label",
+      collapsed ? "Expand heading" : "Collapse heading"
+    );
+
+    return;
+  }
+
   const navigationLink = event.target.closest("[data-target]");
+
   if (navigationLink) {
     event.preventDefault();
     navigateTo(navigationLink.dataset.target);
@@ -136,9 +249,15 @@ document.addEventListener("click", event => {
   }
 
   const panelButton = event.target.closest("[data-panel]");
-  if (panelButton) openPanel(panelButton.dataset.panel);
 
-  if (event.target.closest(".close-button") || event.target === backdrop) {
+  if (panelButton) {
+    openPanel(panelButton.dataset.panel);
+  }
+
+  if (
+    event.target.closest(".close-button") ||
+    event.target === backdrop
+  ) {
     closePanels();
   }
 });
