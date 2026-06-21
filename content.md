@@ -905,7 +905,6 @@ DESCRIPTION6
 hello world one
 
 BODY6
-Hello
 MM10.19 — Integrated Runtime Procedure, Conformance Criteria, and MM10 Freeze
 MM10.19.1 Purpose
 MM10.19 integrates MM10.1–MM10.18 into one canonical runtime procedure.
