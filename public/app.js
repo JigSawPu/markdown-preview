@@ -1,224 +1,250 @@
-const outlineElement = document.querySelector("#outline");
-const descriptionsElement = document.querySelector("#descriptions");
-const documentElement = document.querySelector("#document");
-const backdrop = document.querySelector("#backdrop");
+"use strict";
+/* --------------------------------------------------
+   Main elements
+-------------------------------------------------- */
+const outlineElement =
+  document.querySelector("#outline");
+const descriptionsElement =
+  document.querySelector("#descriptions");
+const documentElement =
+  document.querySelector("#document");
+const backdrop =
+  document.querySelector("#backdrop");
 const panels = {
   outline: document.querySelector("#outline-panel"),
-  descriptions: document.querySelector("#descriptions-panel")
+  descriptions: document.querySelector(
+    "#descriptions-panel"
+  )
 };
-
+let activeTargetId = null;
+let scrollSpyFrame = null;
+/* --------------------------------------------------
+   HTML escaping
+-------------------------------------------------- */
 function escapeText(value) {
-  const node = document.createElement("div");
-  node.textContent = value;
-  return node.innerHTML;
+  const element = document.createElement("div");
+  element.textContent = String(value ?? "");
+  return element.innerHTML;
 }
-
+/* --------------------------------------------------
+   Mobile side panels
+-------------------------------------------------- */
 function closePanels() {
-  Object.values(panels).forEach(panel => panel.classList.remove("open"));
-  backdrop.hidden = true;
+  Object.values(panels).forEach(panel => {
+    if (panel) {
+      panel.classList.remove("open");
+    }
+  });
+  if (backdrop) {
+    backdrop.hidden = true;
+  }
   document.body.style.overflow = "";
 }
-
 function openPanel(name) {
+  const panel = panels[name];
+  if (!panel) {
+    return;
+  }
   closePanels();
-  panels[name].classList.add("open");
-  backdrop.hidden = false;
+  panel.classList.add("open");
+  if (backdrop) {
+    backdrop.hidden = false;
+  }
   document.body.style.overflow = "hidden";
 }
-
+/* --------------------------------------------------
+   Navigation
+-------------------------------------------------- */
 function navigateTo(id) {
   const target = document.getElementById(id);
-  if (!target) return;
+  if (!target) {
+    return;
+  }
   closePanels();
-  target.scrollIntoView({ behavior: "smooth", block: "start" });
-  history.replaceState(null, "", `#${encodeURIComponent(id)}`);
+  const reduceMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+  target.scrollIntoView({
+    behavior: reduceMotion ? "auto" : "smooth",
+    block: "start"
+  });
+  const encodedId = encodeURIComponent(id);
+  history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}#${encodedId}`
+  );
+  setActiveLink(id);
 }
-
+/* --------------------------------------------------
+   Outline tree construction
+-------------------------------------------------- */
 function createOutlineTree(items) {
   const root = {
     level: 0,
     children: []
   };
-
   const stack = [root];
-
   for (const item of items) {
+    const level = Math.max(
+      1,
+      Math.min(6, Number(item.level) || 1)
+    );
     const node = {
-      ...item,
-      level: Math.max(
-        1,
-        Math.min(6, Number(item.level) || 1)
-      ),
+      id: String(item.id || ""),
+      text: String(item.text || "Untitled heading"),
+      level,
       children: []
     };
-
+    /*
+     * Locate the nearest preceding heading with a
+     * lower heading level.
+     *
+     * This also handles skipped levels such as:
+     *
+     * # Heading
+     * ### Subheading
+     */
     while (
       stack.length > 1 &&
-      stack[stack.length - 1].level >= node.level
+      stack[stack.length - 1].level >= level
     ) {
       stack.pop();
     }
-
     stack[stack.length - 1].children.push(node);
     stack.push(node);
   }
-
   return root.children;
 }
-
+/* --------------------------------------------------
+   Outline tree HTML
+-------------------------------------------------- */
 function renderOutlineNodes(nodes) {
-  if (!nodes.length) return "";
-
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return "";
+  }
   return `
     <ul class="outline-list">
-      ${nodes.map(node => {
-        const hasChildren = node.children.length > 0;
-
-        return `
-          <li
-            class="outline-item ${hasChildren ? "has-children" : ""}"
-            data-outline-id="${escapeText(node.id)}"
-          >
-            <div class="outline-row">
-              ${
-                hasChildren
-                  ? `
-                    <button
-                      class="outline-toggle"
-                      type="button"
-                      aria-expanded="true"
-                      aria-label="Collapse heading"
-                    >
-                      <span aria-hidden="true">▾</span>
-                    </button>
-                  `
-                  : `
-                    <span class="outline-toggle-spacer"></span>
-                  `
-              }
-
-              <a
-                class="nav-link"
-                data-target="${escapeText(node.id)}"
-                href="#${encodeURIComponent(node.id)}"
-                title="${escapeText(node.text)}"
-              >
-                <span class="nav-link-text">
-                  ${escapeText(node.text)}
-                </span>
-              </a>
-            </div>
-
-            ${renderOutlineNodes(node.children)}
-          </li>
-        `;
-      }).join("")}
+      ${nodes
+        .map(node => {
+          const hasChildren =
+            node.children.length > 0;
+          const safeId = escapeText(node.id);
+          const safeText = escapeText(node.text);
+          return `
+            <li
+              class="outline-item ${
+                hasChildren ? "has-children" : ""
+              }"
+              data-outline-id="${safeId}"
+            >
+              <div class="outline-row">
+                ${
+                  hasChildren
+                    ? `
+                      <button
+                        class="outline-toggle"
+                        type="button"
+                        aria-expanded="true"
+                        aria-label="Collapse ${safeText}"
+                      >
+                        <span aria-hidden="true">▾</span>
+                      </button>
+                    `
+                    : `
+                      <span
+                        class="outline-toggle-spacer"
+                        aria-hidden="true"
+                      ></span>
+                    `
+                }
+                <a
+                  class="nav-link"
+                  data-target="${safeId}"
+                  href="#${encodeURIComponent(node.id)}"
+                  title="${safeText}"
+                >
+                  <span class="nav-link-text">
+                    ${safeText}
+                  </span>
+                </a>
+              </div>
+              ${renderOutlineNodes(node.children)}
+            </li>
+          `;
+        })
+        .join("")}
     </ul>
   `;
 }
-function renderOutlineNodes(nodes) {
-  if (!nodes.length) return "";
-
-  return `
-    <ul class="outline-list">
-      ${nodes.map(node => {
-        const hasChildren = node.children.length > 0;
-
-        return `
-          <li
-            class="outline-item ${hasChildren ? "has-children" : ""}"
-            data-outline-id="${escapeText(node.id)}"
-          >
-            <div class="outline-row">
-              ${
-                hasChildren
-                  ? `
-                    <button
-                      class="outline-toggle"
-                      type="button"
-                      aria-label="Collapse ${escapeText(node.text)}"
-                      aria-expanded="true"
-                    >
-                      <span aria-hidden="true">▾</span>
-                    </button>
-                  `
-                  : `
-                    <span class="outline-toggle-spacer"></span>
-                  `
-              }
-
-              <a
-                class="nav-link"
-                data-target="${escapeText(node.id)}"
-                href="#${encodeURIComponent(node.id)}"
-                title="${escapeText(node.text)}"
-              >
-                <span class="nav-link-text">
-                  ${escapeText(node.text)}
-                </span>
-              </a>
-            </div>
-
-            ${renderOutlineNodes(node.children)}
-          </li>
-        `;
-      }).join("")}
-    </ul>
-  `;
-}
-
-function buildNestedOutline(items) {
-  if (!items.length) {
-    return `
+/* --------------------------------------------------
+   Build grouped outline and descriptions
+-------------------------------------------------- */
+function buildNavigation(data) {
+  const sections = Array.isArray(data.sections)
+    ? data.sections
+    : [];
+  if (sections.length === 0) {
+    outlineElement.innerHTML = `
       <p class="empty-message">
-        No Markdown headings found.
+        No sections found.
       </p>
     `;
+    descriptionsElement.innerHTML = `
+      <p class="empty-message">
+        No descriptions found.
+      </p>
+    `;
+    return;
   }
-
-  const tree = createOutlineTree(items);
-  return renderOutlineNodes(tree);
-}
-
-function buildNavigation(data) {
-  outlineElement.innerHTML = data.sections.map(
-    (section, index) => {
-      const tree = createOutlineTree(
-        section.outline || []
-      );
-
+  outlineElement.innerHTML = sections
+    .map((section, index) => {
       const description =
         section.description ||
         `Section ${index + 1}`;
-
+      const sectionId = String(section.id);
+      const safeSectionId = escapeText(sectionId);
+      const safeDescription =
+        escapeText(description);
+      const tree = createOutlineTree(
+        Array.isArray(section.outline)
+          ? section.outline
+          : []
+      );
+      const groupContentId =
+        `outline-group-content-${index + 1}`;
       return `
         <section
           class="outline-group"
-          data-section-group="${escapeText(section.id)}"
+          data-section-group="${safeSectionId}"
         >
           <div class="outline-group-header">
             <button
               class="outline-group-toggle"
               type="button"
               aria-expanded="true"
-              aria-label="Collapse description group"
+              aria-controls="${groupContentId}"
+              aria-label="Collapse ${safeDescription}"
             >
               <span aria-hidden="true">▾</span>
             </button>
-
             <a
               class="outline-group-link"
-              data-target="${escapeText(section.id)}"
-              href="#${encodeURIComponent(section.id)}"
-              title="${escapeText(description)}"
+              data-target="${safeSectionId}"
+              href="#${encodeURIComponent(sectionId)}"
+              title="${safeDescription}"
             >
-              ${escapeText(description)}
+              <span class="outline-group-link-text">
+                ${safeDescription}
+              </span>
             </a>
           </div>
-
-          <div class="outline-group-content">
+          <div
+            id="${groupContentId}"
+            class="outline-group-content"
+          >
             ${
-              tree.length
+              tree.length > 0
                 ? renderOutlineNodes(tree)
                 : `
                   <p class="outline-group-empty">
@@ -229,187 +255,475 @@ function buildNavigation(data) {
           </div>
         </section>
       `;
-    }
-  ).join("");
-
-  descriptionsElement.innerHTML = data.sections.map(
-    (section, index) => `
-      <a
-        class="description-link"
-        data-target="${escapeText(section.id)}"
-        href="#${encodeURIComponent(section.id)}"
-      >
-        ${
-          escapeText(
-            section.description ||
-            `Section ${index + 1}`
-          )
-        }
-      </a>
-    `
-  ).join("");
+    })
+    .join("");
+  descriptionsElement.innerHTML = sections
+    .map((section, index) => {
+      const sectionId = String(section.id);
+      const description =
+        section.description ||
+        `Section ${index + 1}`;
+      return `
+        <a
+          class="description-link"
+          data-target="${escapeText(sectionId)}"
+          href="#${encodeURIComponent(sectionId)}"
+        >
+          ${escapeText(description)}
+        </a>
+      `;
+    })
+    .join("");
 }
+/* --------------------------------------------------
+   Build center document
+-------------------------------------------------- */
 function buildDocument(data) {
-  documentElement.innerHTML = data.sections.map((section, index) => `
-    <section class="document-section" id="${escapeText(section.id)}">
-      <p class="section-label">Section ${index + 1}</p>
-      <div class="markdown-body">${section.html}</div>
-    </section>
-  `).join("");
+  const sections = Array.isArray(data.sections)
+    ? data.sections
+    : [];
+  documentElement.innerHTML = sections
+    .map((section, index) => {
+      const sectionId = escapeText(section.id);
+      return `
+        <section
+          class="document-section"
+          id="${sectionId}"
+        >
+          <p class="section-label">
+            Section ${index + 1}
+          </p>
+          <div class="markdown-body">
+            ${section.html || ""}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
 }
-
-function setActiveLink(id) {
-  document.querySelectorAll("[data-target]").forEach(link => {
-    link.classList.toggle(
-      "active",
-      link.dataset.target === id
-    );
+/* --------------------------------------------------
+   Outline lookup helpers
+-------------------------------------------------- */
+function findOutlineItem(id) {
+  return Array.from(
+    outlineElement.querySelectorAll(
+      ".outline-item"
+    )
+  ).find(item => {
+    return item.dataset.outlineId === id;
   });
-
-  const activeOutlineItem = document.querySelector(
-    `.outline-item[data-outline-id="${CSS.escape(id)}"]`
-  );
-
-  if (!activeOutlineItem) return;
-
-  /*
-   * Expand all parent branches containing the active heading.
-   */
-  let parent = activeOutlineItem.parentElement?.closest(".outline-item");
-
-  while (parent) {
-    parent.classList.remove("collapsed");
-
-    const toggle = parent.querySelector(
-      ":scope > .outline-row > .outline-toggle"
-    );
-
-    if (toggle) {
-      toggle.setAttribute("aria-expanded", "true");
-    }
-
-    parent = parent.parentElement?.closest(".outline-item");
+}
+function findOutlineGroup(sectionId) {
+  return Array.from(
+    outlineElement.querySelectorAll(
+      ".outline-group"
+    )
+  ).find(group => {
+    return group.dataset.sectionGroup === sectionId;
+  });
+}
+function findSectionIdForTarget(id) {
+  const target = document.getElementById(id);
+  if (!target) {
+    return null;
   }
-
-  /*
-   * Keep the active outline item visible in the side panel.
-   */
-  activeOutlineItem.scrollIntoView({
-    block: "nearest",
-    behavior: "smooth"
+  const section = target.closest(
+    ".document-section"
+  );
+  return section ? section.id : null;
+}
+/* --------------------------------------------------
+   Expand active outline branches
+-------------------------------------------------- */
+function expandOutlineItemParents(outlineItem) {
+  let parentItem = outlineItem
+    .parentElement
+    ?.closest(".outline-item");
+  while (parentItem) {
+    parentItem.classList.remove("collapsed");
+    const parentToggle =
+      parentItem.querySelector(
+        ":scope > .outline-row > .outline-toggle"
+      );
+    if (parentToggle) {
+      parentToggle.setAttribute(
+        "aria-expanded",
+        "true"
+      );
+      parentToggle.setAttribute(
+        "aria-label",
+        "Collapse heading"
+      );
+    }
+    parentItem = parentItem
+      .parentElement
+      ?.closest(".outline-item");
+  }
+}
+function expandOutlineGroup(group) {
+  if (!group) {
+    return;
+  }
+  group.classList.remove("collapsed");
+  const toggle = group.querySelector(
+    ":scope > .outline-group-header > .outline-group-toggle"
+  );
+  if (toggle) {
+    toggle.setAttribute(
+      "aria-expanded",
+      "true"
+    );
+    toggle.setAttribute(
+      "aria-label",
+      "Collapse description group"
+    );
+  }
+}
+/* --------------------------------------------------
+   Keep active outline entry visible
+-------------------------------------------------- */
+function keepOutlineEntryVisible(element) {
+  const outlinePanel = panels.outline;
+  if (!element || !outlinePanel) {
+    return;
+  }
+  const panelRectangle =
+    outlinePanel.getBoundingClientRect();
+  const elementRectangle =
+    element.getBoundingClientRect();
+  const isAbove =
+    elementRectangle.top <
+    panelRectangle.top + 50;
+  const isBelow =
+    elementRectangle.bottom >
+    panelRectangle.bottom - 30;
+  if (!isAbove && !isBelow) {
+    return;
+  }
+  const targetTop =
+    outlinePanel.scrollTop +
+    elementRectangle.top -
+    panelRectangle.top -
+    outlinePanel.clientHeight / 3;
+  const reduceMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+  outlinePanel.scrollTo({
+    top: Math.max(0, targetTop),
+    behavior: reduceMotion ? "auto" : "smooth"
   });
 }
-
-function observeSections() {
-  const targets = [
-    ...document.querySelectorAll(".document-section"),
-    ...document.querySelectorAll(".anchored-heading")
-  ];
-
-  const observer = new IntersectionObserver(entries => {
-    const visible = entries
-      .filter(entry => entry.isIntersecting)
-      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-    if (visible[0]) setActiveLink(visible[0].target.id);
-  }, {
-    rootMargin: "-15% 0px -70% 0px",
-    threshold: 0
-  });
-
-  targets.forEach(target => observer.observe(target));
+/* --------------------------------------------------
+   Active heading and section state
+-------------------------------------------------- */
+function setActiveLink(id) {
+  if (!id || activeTargetId === id) {
+    return;
+  }
+  activeTargetId = id;
+  const sectionId =
+    findSectionIdForTarget(id);
+  document
+    .querySelectorAll("[data-target]")
+    .forEach(link => {
+      const targetId = link.dataset.target;
+      const isExactTarget =
+        targetId === id;
+      const isSectionNavigation =
+        sectionId &&
+        targetId === sectionId &&
+        (
+          link.classList.contains(
+            "outline-group-link"
+          ) ||
+          link.classList.contains(
+            "description-link"
+          )
+        );
+      link.classList.toggle(
+        "active",
+        Boolean(
+          isExactTarget ||
+          isSectionNavigation
+        )
+      );
+    });
+  const activeGroup =
+    sectionId
+      ? findOutlineGroup(sectionId)
+      : null;
+  if (activeGroup) {
+    expandOutlineGroup(activeGroup);
+  }
+  const activeOutlineItem =
+    findOutlineItem(id);
+  if (activeOutlineItem) {
+    expandOutlineItemParents(
+      activeOutlineItem
+    );
+    keepOutlineEntryVisible(
+      activeOutlineItem
+    );
+  } else if (activeGroup) {
+    keepOutlineEntryVisible(
+      activeGroup
+    );
+  }
 }
-
+/* --------------------------------------------------
+   Scroll spy
+-------------------------------------------------- */
+function getScrollSpyTargets() {
+  return Array.from(
+    documentElement.querySelectorAll(
+      ".document-section, .anchored-heading"
+    )
+  );
+}
+function updateActiveTargetFromScroll() {
+  scrollSpyFrame = null;
+  const targets = getScrollSpyTargets();
+  if (targets.length === 0) {
+    return;
+  }
+  const mobileHeaderOffset =
+    window.innerWidth <= 900 ? 90 : 50;
+  let activeTarget = targets[0];
+  for (const target of targets) {
+    const rectangle =
+      target.getBoundingClientRect();
+    if (rectangle.top <= mobileHeaderOffset) {
+      activeTarget = target;
+    } else {
+      break;
+    }
+  }
+  setActiveLink(activeTarget.id);
+}
+function requestScrollSpyUpdate() {
+  if (scrollSpyFrame !== null) {
+    return;
+  }
+  scrollSpyFrame = requestAnimationFrame(
+    updateActiveTargetFromScroll
+  );
+}
+function startScrollSpy() {
+  window.addEventListener(
+    "scroll",
+    requestScrollSpyUpdate,
+    { passive: true }
+  );
+  window.addEventListener(
+    "resize",
+    requestScrollSpyUpdate
+  );
+  requestScrollSpyUpdate();
+}
+/* --------------------------------------------------
+   Click handling
+-------------------------------------------------- */
 document.addEventListener("click", event => {
-  const groupToggle = event.target.closest(
+  const clickedElement =
+    event.target instanceof Element
+      ? event.target
+      : event.target.parentElement;
+  if (!clickedElement) {
+    return;
+  }
+  /*
+   * Description-group collapse button.
+   */
+  const groupToggle = clickedElement.closest(
     ".outline-group-toggle"
   );
-
   if (groupToggle) {
     const group = groupToggle.closest(
       ".outline-group"
     );
-
-    const collapsed = group.classList.toggle(
-      "collapsed"
-    );
-
+    if (!group) {
+      return;
+    }
+    const collapsed =
+      group.classList.toggle("collapsed");
     groupToggle.setAttribute(
       "aria-expanded",
       collapsed ? "false" : "true"
     );
-
+    groupToggle.setAttribute(
+      "aria-label",
+      collapsed
+        ? "Expand description group"
+        : "Collapse description group"
+    );
     return;
   }
-
-  const toggleButton = event.target.closest(
-    ".outline-toggle"
-  );
-
-  if (toggleButton) {
-    const outlineItem = toggleButton.closest(
-      ".outline-item"
+  /*
+   * Individual heading collapse button.
+   */
+  const outlineToggle =
+    clickedElement.closest(
+      ".outline-toggle"
     );
-
-    const collapsed = outlineItem.classList.toggle(
-      "collapsed"
-    );
-
-    toggleButton.setAttribute(
+  if (outlineToggle) {
+    const outlineItem =
+      outlineToggle.closest(
+        ".outline-item"
+      );
+    if (!outlineItem) {
+      return;
+    }
+    const collapsed =
+      outlineItem.classList.toggle(
+        "collapsed"
+      );
+    outlineToggle.setAttribute(
       "aria-expanded",
       collapsed ? "false" : "true"
     );
-
+    outlineToggle.setAttribute(
+      "aria-label",
+      collapsed
+        ? "Expand heading"
+        : "Collapse heading"
+    );
     return;
   }
-
-  const navigationLink = event.target.closest(
-    "[data-target]"
-  );
-
+  /*
+   * Outline and description navigation.
+   */
+  const navigationLink =
+    clickedElement.closest(
+      "[data-target]"
+    );
   if (navigationLink) {
     event.preventDefault();
-    navigateTo(navigationLink.dataset.target);
+    navigateTo(
+      navigationLink.dataset.target
+    );
     return;
   }
-
-  const panelButton = event.target.closest(
-    "[data-panel]"
-  );
-
+  /*
+   * Mobile panel buttons.
+   */
+  const panelButton =
+    clickedElement.closest(
+      "[data-panel]"
+    );
   if (panelButton) {
-    openPanel(panelButton.dataset.panel);
+    openPanel(
+      panelButton.dataset.panel
+    );
+    return;
   }
-
+  /*
+   * Close buttons and backdrop.
+   */
   if (
-    event.target.closest(".close-button") ||
-    event.target === backdrop
+    clickedElement.closest(
+      ".close-button"
+    ) ||
+    clickedElement === backdrop
   ) {
     closePanels();
   }
 });
-document.addEventListener("keydown", event => {
-  if (event.key === "Escape") closePanels();
-});
-
+/* --------------------------------------------------
+   Keyboard handling
+-------------------------------------------------- */
+document.addEventListener(
+  "keydown",
+  event => {
+    if (event.key === "Escape") {
+      closePanels();
+    }
+  }
+);
+/* --------------------------------------------------
+   Initial URL hash
+-------------------------------------------------- */
+function getInitialHashId() {
+  const hash = window.location.hash.slice(1);
+  if (!hash) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(hash);
+  } catch {
+    return hash;
+  }
+}
+/* --------------------------------------------------
+   Load document
+-------------------------------------------------- */
 async function loadDocument() {
   try {
-    const response = await fetch("/api/document", { cache: "no-store" });
+    const response = await fetch(
+      "/api/document",
+      {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json"
+        }
+      }
+    );
     const data = await response.json();
-
-    if (!response.ok) throw new Error(data.error || "Could not load document.");
-
-    buildNavigation(data);
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        "Could not load the document."
+      );
+    }
+    if (
+      !data ||
+      !Array.isArray(data.sections)
+    ) {
+      throw new Error(
+        "The server returned invalid document data."
+      );
+    }
     buildDocument(data);
-    observeSections();
-
-    const initialId = decodeURIComponent(location.hash.slice(1));
-    if (initialId) requestAnimationFrame(() => navigateTo(initialId));
+    buildNavigation(data);
+    startScrollSpy();
+    const initialId = getInitialHashId();
+    if (initialId) {
+      requestAnimationFrame(() => {
+        navigateTo(initialId);
+      });
+    } else {
+      requestScrollSpyUpdate();
+    }
   } catch (error) {
+    console.error(
+      "Unable to load document:",
+      error
+    );
+    outlineElement.innerHTML = `
+      <p class="empty-message">
+        Outline unavailable.
+      </p>
+    `;
+    descriptionsElement.innerHTML = `
+      <p class="empty-message">
+        Descriptions unavailable.
+      </p>
+    `;
     documentElement.innerHTML = `
-      <p class="error-message"><strong>Unable to load the Markdown file.</strong><br>
-      ${escapeText(error.message)}</p>
+      <div class="error-message">
+        <p>
+          <strong>
+            Unable to load the Markdown file.
+          </strong>
+        </p>
+        <p>
+          ${escapeText(
+            error instanceof Error
+              ? error.message
+              : "Unknown error"
+          )}
+        </p>
+      </div>
     `;
   }
 }
-
 loadDocument();
