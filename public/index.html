@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f7f8">
+  <title>Markdown Reader</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="mobile-header">
+    <button class="panel-button" data-panel="outline" aria-controls="outline-panel">Outline</button>
+    <strong>Markdown Reader</strong>
+    <button class="panel-button" data-panel="descriptions" aria-controls="descriptions-panel">Descriptions</button>
+  </header>
+
+  <div id="backdrop" class="backdrop" hidden></div>
+
+  <div class="app-shell">
+    <aside id="outline-panel" class="side-panel left-panel" aria-label="Document outline">
+      <div class="panel-heading">
+        <h2>Outline</h2>
+        <button class="close-button" aria-label="Close outline">×</button>
+      </div>
+      <nav id="outline"></nav>
+    </aside>
+
+    <main id="document" class="document" tabindex="-1">
+      <div class="loading">Loading document…</div>
+    </main>
+
+    <aside id="descriptions-panel" class="side-panel right-panel" aria-label="Descriptions">
+      <div class="panel-heading">
+        <h2>Descriptions</h2>
+        <button class="close-button" aria-label="Close descriptions">×</button>
+      </div>
+      <nav id="descriptions"></nav>
+    </aside>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
