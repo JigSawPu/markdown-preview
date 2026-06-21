@@ -34,21 +34,60 @@ function navigateTo(id) {
   history.replaceState(null, "", `#${encodeURIComponent(id)}`);
 }
 
-function buildNavigation(data) {
-  if (data.outline.length) {
-    outlineElement.innerHTML = data.outline.map(item => `
-      <a class="nav-link" data-target="${escapeText(item.id)}"
-         data-level="${item.level}" href="#${encodeURIComponent(item.id)}">
-        ${escapeText(item.text)}
-      </a>
-    `).join("");
-  } else {
-    outlineElement.innerHTML = '<p class="empty-message">No Markdown headings found.</p>';
+function buildNestedOutline(items) {
+  if (!items.length) {
+    return '<p class="empty-message">No Markdown headings found.</p>';
   }
 
+  let html = "";
+  let currentLevel = 0;
+
+  for (const item of items) {
+    const level = Math.max(1, Math.min(6, Number(item.level) || 1));
+
+    while (currentLevel < level) {
+      html += '<ul class="outline-list">';
+      currentLevel++;
+    }
+
+    while (currentLevel > level) {
+      html += "</li></ul>";
+      currentLevel--;
+    }
+
+    if (html && !html.endsWith('<ul class="outline-list">')) {
+      html += "</li>";
+    }
+
+    html += `
+      <li class="outline-item">
+        <a
+          class="nav-link"
+          data-target="${escapeText(item.id)}"
+          href="#${encodeURIComponent(item.id)}"
+        >
+          ${escapeText(item.text)}
+        </a>
+    `;
+  }
+
+  while (currentLevel > 0) {
+    html += "</li></ul>";
+    currentLevel--;
+  }
+
+  return html;
+}
+
+function buildNavigation(data) {
+  outlineElement.innerHTML = buildNestedOutline(data.outline);
+
   descriptionsElement.innerHTML = data.sections.map((section, index) => `
-    <a class="description-link" data-target="${escapeText(section.id)}"
-       href="#${encodeURIComponent(section.id)}">
+    <a
+      class="description-link"
+      data-target="${escapeText(section.id)}"
+      href="#${encodeURIComponent(section.id)}"
+    >
       ${escapeText(section.description || `Section ${index + 1}`)}
     </a>
   `).join("");
