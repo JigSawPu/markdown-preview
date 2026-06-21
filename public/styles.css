@@ -117,40 +117,21 @@ button {
   height: auto;
   border-radius: 8px;
 }
+.markdown-body {
+  background: transparent;
+  color: var(--text);
+}
 
-.document pre {
+.markdown-body img {
   max-width: 100%;
-  overflow-x: auto;
-  padding: 16px;
-  border-radius: 10px;
-  background: #111827;
-  color: #f9fafb;
+  height: auto;
+}
+
+.markdown-body pre,
+.markdown-body table {
   -webkit-overflow-scrolling: touch;
 }
 
-.document code {
-  overflow-wrap: anywhere;
-}
-
-.document blockquote {
-  margin-left: 0;
-  padding-left: 18px;
-  border-left: 4px solid var(--border);
-  color: var(--muted);
-}
-
-.document table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-  border-collapse: collapse;
-}
-
-.document th,
-.document td {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-}
 
 .anchored-heading {
   scroll-margin-top: 20px;
