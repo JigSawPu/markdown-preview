@@ -45,19 +45,13 @@ function createOutlineTree(items) {
   for (const item of items) {
     const node = {
       ...item,
-      level: Math.max(1, Math.min(6, Number(item.level) || 1)),
+      level: Math.max(
+        1,
+        Math.min(6, Number(item.level) || 1)
+      ),
       children: []
     };
 
-    /*
-     * Find the nearest previous heading with a lower level.
-     *
-     * This also handles skipped levels:
-     * # Heading
-     * ### Heading
-     *
-     * The H3 becomes a child of the H1.
-     */
     while (
       stack.length > 1 &&
       stack[stack.length - 1].level >= node.level
@@ -72,6 +66,56 @@ function createOutlineTree(items) {
   return root.children;
 }
 
+function renderOutlineNodes(nodes) {
+  if (!nodes.length) return "";
+
+  return `
+    <ul class="outline-list">
+      ${nodes.map(node => {
+        const hasChildren = node.children.length > 0;
+
+        return `
+          <li
+            class="outline-item ${hasChildren ? "has-children" : ""}"
+            data-outline-id="${escapeText(node.id)}"
+          >
+            <div class="outline-row">
+              ${
+                hasChildren
+                  ? `
+                    <button
+                      class="outline-toggle"
+                      type="button"
+                      aria-expanded="true"
+                      aria-label="Collapse heading"
+                    >
+                      <span aria-hidden="true">▾</span>
+                    </button>
+                  `
+                  : `
+                    <span class="outline-toggle-spacer"></span>
+                  `
+              }
+
+              <a
+                class="nav-link"
+                data-target="${escapeText(node.id)}"
+                href="#${encodeURIComponent(node.id)}"
+                title="${escapeText(node.text)}"
+              >
+                <span class="nav-link-text">
+                  ${escapeText(node.text)}
+                </span>
+              </a>
+            </div>
+
+            ${renderOutlineNodes(node.children)}
+          </li>
+        `;
+      }).join("")}
+    </ul>
+  `;
+}
 function renderOutlineNodes(nodes) {
   if (!nodes.length) return "";
 
@@ -137,19 +181,74 @@ function buildNestedOutline(items) {
 }
 
 function buildNavigation(data) {
-  outlineElement.innerHTML = buildNestedOutline(data.outline);
+  outlineElement.innerHTML = data.sections.map(
+    (section, index) => {
+      const tree = createOutlineTree(
+        section.outline || []
+      );
 
-  descriptionsElement.innerHTML = data.sections.map((section, index) => `
-    <a
-      class="description-link"
-      data-target="${escapeText(section.id)}"
-      href="#${encodeURIComponent(section.id)}"
-    >
-      ${escapeText(section.description || `Section ${index + 1}`)}
-    </a>
-  `).join("");
+      const description =
+        section.description ||
+        `Section ${index + 1}`;
+
+      return `
+        <section
+          class="outline-group"
+          data-section-group="${escapeText(section.id)}"
+        >
+          <div class="outline-group-header">
+            <button
+              class="outline-group-toggle"
+              type="button"
+              aria-expanded="true"
+              aria-label="Collapse description group"
+            >
+              <span aria-hidden="true">▾</span>
+            </button>
+
+            <a
+              class="outline-group-link"
+              data-target="${escapeText(section.id)}"
+              href="#${encodeURIComponent(section.id)}"
+              title="${escapeText(description)}"
+            >
+              ${escapeText(description)}
+            </a>
+          </div>
+
+          <div class="outline-group-content">
+            ${
+              tree.length
+                ? renderOutlineNodes(tree)
+                : `
+                  <p class="outline-group-empty">
+                    No headings in this section
+                  </p>
+                `
+            }
+          </div>
+        </section>
+      `;
+    }
+  ).join("");
+
+  descriptionsElement.innerHTML = data.sections.map(
+    (section, index) => `
+      <a
+        class="description-link"
+        data-target="${escapeText(section.id)}"
+        href="#${encodeURIComponent(section.id)}"
+      >
+        ${
+          escapeText(
+            section.description ||
+            `Section ${index + 1}`
+          )
+        }
+      </a>
+    `
+  ).join("");
 }
-
 function buildDocument(data) {
   documentElement.innerHTML = data.sections.map((section, index) => `
     <section class="document-section" id="${escapeText(section.id)}">
